@@ -48,35 +48,12 @@ module.exports = function ipfilter(ips, opts) {
     mode: 'deny',
     log: true,
     logF: logger,
-    allowedHeaders: [],
     allowPrivateIPs: false,
     excluding: []
   });
 
   var getClientIp = function(req) {
-    var ipAddress;
-
-    var headerIp = _.reduce(settings.allowedHeaders, function(acc, header){
-      var testIp = req.headers[header];
-      if(testIp!= ''){
-        acc = testIp;
-      }
-
-      return acc;
-    },'');
-
-    if(headerIp) {
-      var splitHeaderIp = headerIp.split(',');
-      ipAddress = splitHeaderIp[0];
-    }
-
-    if(!ipAddress) {
-      ipAddress = req.connection.remoteAddress;
-    }
-
-    if(!ipAddress){
-      return '';
-    }
+    var ipAddress = req.ip;
 
     if(ipAddress.indexOf(':') !== -1 && ipAddress.indexOf('::') === -1){
       ipAddress = ipAddress.split(':')[0];
