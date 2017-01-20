@@ -5,6 +5,7 @@
   "author": "BaM Interactive",
   "dependencies": {
     "ip": "~1.1.0",
+    "ipaddr.js": "^1.2.0",
     "lodash": "~3.10.1",
     "range_check": "^1.2.0"
   },
