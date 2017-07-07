@@ -6,7 +6,7 @@ This package provides easy IP based access control. This can be achieved either 
 [![Circle CI](https://circleci.com/gh/baminteractive/express-ipfilter/tree/master.svg?style=svg)](https://circleci.com/gh/baminteractive/express-ipfilter/tree/master)
 
 ## Version
-0.2.1
+0.2.5
 
 ## Installation
 
@@ -72,7 +72,30 @@ app.use(ipfilter(ips, {mode: 'allow'}));
 module.exports = app;
 ```
 
-> See the example app for an example of how to handle errors.
+## Error Handling
+
+When an IP is denied, an IpDeniedError will be thrown by the middleware. If you do not handle the error, it will cause your app to crash due to an unhandled exception. Here is an example of how to handle the error, which can also be found in the example app:
+
+```
+if (app.get('env') === 'development') {
+  app.use(function(err, req, res, _next) {
+    console.log('Error handler', err);
+    if(err instanceof IpDeniedError){
+      res.status(401);
+    }else{
+      res.status(err.status || 500);
+    }
+
+    res.render('error', {
+      message: 'You shall not pass',
+      error: err
+    });
+  });
+}
+```
+
+You will need to require the `IpDeniedError` type in order to handle it.
+
 
 ## Options
 
@@ -83,6 +106,24 @@ module.exports = app;
 | logLevel | level of logging (*all*,*deny*,*allow*) | string | all
 | allowedHeaders | an array of strings for header names that are acceptable for retrieving an IP address | array | [] |
 | excluding   | routes that should be excluded from ip filtering | array|[]|
+| detectIp | define a custom function that takes an Express request object and returns an IP address to test against | function | built-in detection |
+
+> A note on detectIp
+
+If you need to parse an IP address in a way that is not supported by default, you can write your own parser and pass that to `ipfilter`.
+
+```
+function customDetection(req){
+  var ipAddress;
+
+  ipAddress = req.connection.remoteAddress.replace(/\//g, '.');
+
+  return ipAddress;
+}
+
+ipfilter(ids, {detectIp: customDetection});
+
+```
 
 ## Contributing
 
@@ -102,6 +143,19 @@ This will run `eslint`,`babel`, and `mocha` and output coverage data into `cover
 
 ## Changelog
 
+0.3.0
+* Added fields `status` and `statusCode` to the IpDeniedError object, which both equal `403`.
+
+0.2.4
+* For IPv4 addresses that have a port (as experienced with Azure web apps), the port is now stripped before comparing it with the contents of the whitelist or blacklist. Fixes issue #49.
+
+0.2.3
+* Fixed a bug that sent all logging through instead of just denied requests
+
+0.2.2
+* Added a customization point for IP detection
+* Fixed a bug with IPv4 over IPv6
+
 0.2.1
 * Add log level property.
 
@@ -112,7 +166,7 @@ This will run `eslint`,`babel`, and `mocha` and output coverage data into `cover
 * If you want to handle errors you must require the error type as well `var IpDeniedError = require('express-ipfilter').IpDeniedError;`
 
 0.1.1
-* Added a favicon to the example to supress the 404 error looking for it.
+* Added a favicon to the example to suppress the 404 error looking for it.
 
 0.1.0
 * Changed default behavior of the library to disable reading forwarded IP headers. They must now be explicitly enabled.

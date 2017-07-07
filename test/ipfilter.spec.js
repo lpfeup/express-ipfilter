@@ -33,6 +33,13 @@ describe('enforcing IP address blacklist restrictions', function () {
     });
   });
 
+  it('should allow all non-blacklisted IPv4 ips through the IPv6 standard', function (done) {
+    this.req.connection.remoteAddress = '::ffff:127.0.0.2';
+    this.ipfilter(this.req, {}, function () {
+      done();
+    });
+  });
+
   it('should allow all non-blacklisted forwarded ips', function (done) {
     this.req.headers['x-forwarded-for'] = '127.0.0.2';
     this.ipfilter(this.req, {}, function () {
@@ -45,6 +52,10 @@ describe('enforcing IP address blacklist restrictions', function () {
     checkError(this.ipfilter, this.req, done);
   });
 
+  it('should deny an IPv4 ip transmitted as IPv6', function(done){
+    this.req.connection.remoteAddress = '::ffff:127.0.0.1';
+    checkError(this.ipfilter, this.req, done);
+  });
 
   it('should deny all blacklisted forwarded ips', function (done) {
     this.req.headers['x-forwarded-for'] = '127.0.0.1';
@@ -120,6 +131,13 @@ describe('using cidr block', function () {
 
     it('should allow whitelisted forwarded ips', function (done) {
       this.req.headers['x-forwarded-for'] = '127.0.0.1';
+      this.ipfilter(this.req, {}, function () {
+        done();
+      });
+    });
+
+    it('should allow whitelisted forwarded ips with ports', function (done) {
+      this.req.headers['x-forwarded-for'] = '127.0.0.1:23456';
       this.ipfilter(this.req, {}, function () {
         done();
       });
@@ -230,13 +248,30 @@ describe('using ranges', function () {
       });
     });
 
+    it('should allow whitelisted forwarded ips with ports', function (done) {
+      this.req.headers['x-forwarded-for'] = '127.0.0.1:23456';
+      this.ipfilter(this.req, {}, function () {
+        done();
+      });
+    });
+
     it('should deny all non-whitelisted ips', function (done) {
       this.req.connection.remoteAddress = '127.0.0.17';
       checkError(this.ipfilter, this.req, done);
     });
 
+    it('should deny all non-whitelisted ips with ports', function (done) {
+      this.req.connection.remoteAddress = '127.0.0.17:23456';
+      checkError(this.ipfilter, this.req, done);
+    });
+
     it('should deny all non-whitelisted forwarded ips', function (done) {
       this.req.headers['x-forwarded-for'] = '127.0.0.17';
+      checkError(this.ipfilter, this.req, done);
+    });
+
+    it('should deny all non-whitelisted forwarded ips with ports', function (done) {
+      this.req.headers['x-forwarded-for'] = '127.0.0.17:23456';
       checkError(this.ipfilter, this.req, done);
     });
   });
@@ -656,6 +691,31 @@ describe('LogLevel function', function () {
     this.ipfilter(this.req, function(){}, next);
   });
 
+  it('should not log allow if log level is set to deny and a exclude path is set', function (done) {
+    var messages = [];
+    var logF = function logFF(message) {
+      console.log(message,'it happend!');
+      messages.push(message);
+    };
+    this.ipfilter = ipfilter(['127.0.0.1'], { log: true, logF: logF, logLevel: 'deny', excluding: [ '/health' ]});
+    this.req = {
+      url: '/health/foo/bar',
+      session: {},
+      headers: [],
+      connection: {
+        remoteAddress: ''
+      }
+    };
+
+    this.req.connection.remoteAddress = '127.0.0.1';
+
+    var next = function(){
+      assert.equal(0, messages.length, messages[0]);
+      done();
+    };
+
+    this.ipfilter(this.req, function(){}, next);
+  });
 
   it('should log deny if log level is set to deny', function (done) {
     var messages = [];
@@ -950,6 +1010,33 @@ describe('mixing different types of filters with IPv4 and IPv6', function () {
       this.req.connection.remoteAddress = '127.0.0.15';
       checkError(this.ipfilter, this.req, done);
     });
+  });
+});
+
+
+describe('using a custom ip detection function', function(){
+  beforeEach(function () {
+    function detectIp(req){
+      var ipAddress;
+
+      ipAddress = req.connection.remoteAddress.replace(/\//g, '.');
+
+      return ipAddress;
+    }
+
+    this.ipfilter = ipfilter(['127.0.0.1'], { detectIp: detectIp, log: false, allowedHeaders: ['x-forwarded-for'] });
+    this.req = {
+      session: {},
+      headers: [],
+      connection: {
+        remoteAddress: ''
+      }
+    };
+  });
+
+  it('should find the ip correctly', function(done){
+    this.req.connection.remoteAddress = '127/0/0/1';
+    checkError(this.ipfilter, this.req, done);
   });
 });
 
